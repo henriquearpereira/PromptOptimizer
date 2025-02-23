@@ -4,12 +4,12 @@ from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
 
 app = Flask(__name__, static_folder='../static') 
 
-# Load a pre-trained GPT-2 model for text generation
-model_name = "gpt2"
+# Load a more advanced model, e.g., GPT-4 or DeepSeek
+model_name = "deepseek-ai/deepseek-llm-7b-base"  # Replace with the actual model name
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForCausalLM.from_pretrained(model_name)
 
-# Set pad_token to eos_token (50256 for gpt2)
+# Set pad_token to eos_token if necessary
 tokenizer.pad_token = tokenizer.eos_token
 
 # Create a pipeline for text generation
@@ -21,25 +21,20 @@ generator = pipeline("text-generation",
                     temperature=0.7,
                     pad_token_id=tokenizer.eos_token_id)
 
-# Function to optimize prompts using GPT-2
+# Function to optimize prompts using the advanced model
 def optimize_prompt(prompt):
     if not prompt or prompt.strip() == "":
         return "Please enter a prompt to optimize."
 
-    # Use GPT-2 to generate an optimized version of the prompt
     optimized_prompt = prompt.strip()
     base_prompt = f"Optimize this LLM prompt: '{optimized_prompt}'. Suggest a clearer, more specific version (e.g., add context like audience, length, format, or purpose) and return only the optimized prompt, no extra text: "
 
-    # Generate a suggestion using GPT-2
     try:
-        result = generator(base_prompt, num_return_sequences=1, max_length=150)[0]['generated_text']
+        result = generator(base_prompt, num_return_sequences=1, max_length=150, temperature=0.5, top_k=50, top_p=0.9)[0]['generated_text']
         
-        # Clean up the result—look for the optimized prompt after the base prompt
         optimized_start = result.find(optimized_prompt) + len(optimized_prompt)
         if optimized_start > len(optimized_prompt):
-            # Try to extract the suggestion after the original prompt
             suggestion = result[optimized_start:].strip()
-            # Remove any trailing or leading noise (e.g., extra text, punctuation)
             if suggestion and suggestion[0] in [',', '.', ':', ' ']:
                 suggestion = suggestion[1:].strip()
             if suggestion and suggestion[-1] in [',', '.', ':']:
@@ -48,7 +43,6 @@ def optimize_prompt(prompt):
                 suggestion = suggestion.split("suggest", 1)[1].strip()
             if suggestion:
                 return optimized_prompt + " " + suggestion
-        # Fallback if parsing fails
         return optimized_prompt + " (enhance with context, e.g., specify audience, length like 'under 50 words', or format)"
     except Exception as e:
         print(f"Error generating prompt: {e}")
