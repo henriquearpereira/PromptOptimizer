@@ -1,25 +1,38 @@
 # app/main.py
 from flask import Flask, request, jsonify, render_template
+from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
 
 app = Flask(__name__)
 
-# Hardcoded prompt optimization function (replace with LLM logic later)
+# Load a pre-trained GPT-2 model for text generation
+model_name = "gpt2"
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForCausalLM.from_pretrained(model_name)
+
+# Create a pipeline for text generation
+generator = pipeline("text-generation", model=model, tokenizer=tokenizer, max_length=50, temperature=0.7)
+
+# Function to optimize prompts using GPT-2
 def optimize_prompt(prompt):
     if not prompt or prompt.strip() == "":
         return "Please enter a prompt to optimize."
-    
-    # Simple hardcoded optimizations based on prompt content
+
+    # Use GPT-2 to generate an optimized version of the prompt
     optimized_prompt = prompt.strip()
-    if "write" in optimized_prompt.lower():
-        optimized_prompt += " (be specific: include length, style, or context, e.g., '100 words, poetic style')"
-    elif "explain" in optimized_prompt.lower():
-        optimized_prompt += " (provide examples or break it into steps for clarity)"
-    elif "generate" in optimized_prompt.lower():
-        optimized_prompt += " (specify format, e.g., 'list, paragraph, or code')"
-    else:
-        optimized_prompt += " (add context or clarify intent, e.g., 'for a technical audience' or 'in 50 words')"
+    base_prompt = f"Optimize this LLM prompt: '{optimized_prompt}'. Suggest a clearer, more specific version (e.g., add context, length, audience, or format): "
+
+    # Generate a suggestion using GPT-2
+    result = generator(base_prompt, num_return_sequences=1, max_length=100)[0]['generated_text']
     
-    return optimized_prompt
+    # Extract the optimized prompt (simplified parsing—improve later if needed)
+    # Look for the suggestion after "Suggest a clearer, more specific version:"
+    suggestion_start = result.find("Suggest a clearer, more specific version:") + len("Suggest a clearer, more specific version:")
+    if suggestion_start > len("Suggest a clearer, more specific version:"):
+        optimized_suggestion = result[suggestion_start:].strip()
+    else:
+        optimized_suggestion = optimized_prompt + " (add context or clarify intent, e.g., 'for a technical audience' or 'in 50 words')"
+
+    return optimized_suggestion
 
 # Route for the homepage (serves the HTML form)
 @app.route('/', methods=['GET', 'POST'])
