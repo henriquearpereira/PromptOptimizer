@@ -1,0 +1,24 @@
+<!-- static/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PromptOptimizer</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <h1>PromptOptimizer</h1>
+    <form method="POST" action="/">
+        <label for="prompt">Enter your LLM prompt:</label><br>
+        <textarea id="prompt" name="prompt" rows="4" cols="50"></textarea><br>
+        <input type="submit" value="Optimize">
+    </form>
+    {% if prompt and optimized %}
+        <h2>Results</h2>
+        <p><strong>Original Prompt:</strong> {{ prompt }}</p>
+        <p><strong>Optimized Prompt:</strong> {{ optimized }}</p>
+    {% endif %}
+    <script src="script.js"></script>
+</body>
+</html>
