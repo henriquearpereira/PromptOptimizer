@@ -23,7 +23,23 @@ def optimize_prompt(prompt):
         return "Please enter a prompt to optimize."
 
     optimized_prompt = prompt.strip()
-    base_prompt = f"[INST]Optimize this LLM prompt: '{optimized_prompt}'. Suggest a clearer, more specific version (e.g., add context like audience, length, format, or purpose): [/INST]"
+    # Create a two-part prompt structure
+    base_prompt = (
+        "You are a prompt optimization expert. For the following writing prompt:\n"
+        f"'{optimized_prompt}'\n\n"
+        "Provide two parts:\n"
+        "1. First, give an optimized version of the core prompt that maintains its essence while making it more specific and engaging.\n"
+        "2. Then, provide supporting details like:\n"
+        "   - Target audience\n"
+        "   - Length requirements\n"
+        "   - Style/tone\n"
+        "   - Key elements to include\n\n"
+        "Format your response as:\n"
+        "Optimized prompt: [your improved prompt]\n"
+        "Supporting details:\n"
+        "[list the details]\n\n"
+        "Response:"
+    )
     
     if tokenizer is None or model is None:
         return "Model not loaded. Please restart the app"
@@ -32,35 +48,31 @@ def optimize_prompt(prompt):
 
     try:
         inputs = tokenizer(base_prompt, return_tensors="pt").to(model.device)
-        logging.debug(f"Tokenized inputs: {inputs}")
-
         outputs = model.generate(
             **inputs,
-            max_new_tokens=200,
+            max_new_tokens=200,  # Increased for two-part response
             temperature=0.7,
             top_k=50,
             top_p=0.9,
             do_sample=True
         )
-        logging.debug(f"Generated outputs: {outputs}")
 
         result = tokenizer.decode(outputs[0], skip_special_tokens=True)
-        logging.debug(f"Decoded result: '{result}'")
-
-        # Remove the base prompt from the result (Mistral does add the prompt back in)
-        result = result.replace(base_prompt.replace("[INST]", "").replace("[/INST]", ""), "").strip()
-
-        # Remove repetitive phrases
-        result = re.sub(r'(\s*\n){2,}', '\n\n', result)
-        result = re.sub(r'Write a story\.', '', result)
-        result = re.sub(r'Write a story', '', result)
-
+        
+        # Clean up the response but preserve the two-part structure
+        result = result.replace(base_prompt, "").strip()
+        result = re.sub(r'Response:', '', result)
+        result = re.sub(r'## INPUT ##', '', result)
+        result = re.sub(r'## OUTPUT ##', '', result)
+        
+        # Clean up any extra whitespace while preserving structure
+        result = re.sub(r'\s{3,}', '\n\n', result)
         result = result.strip()
 
         if result:
-            return optimized_prompt + " " + result
+            return result
         else:
-            return optimized_prompt + " (The model was unable to provide a specific optimization, try adding context like audience, length like 'under 50 words', or format)"
+            return prompt + " (Please add more context and specificity)"
 
     except Exception as e:
         logging.error(f"Error generating prompt: {e}")
