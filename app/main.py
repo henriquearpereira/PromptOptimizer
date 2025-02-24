@@ -1,63 +1,82 @@
-# app/main.py
 from flask import Flask, request, jsonify, render_template
-from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
+import torch
+import logging
+import re
+import os
+from models.model_loader import get_tokenizer, get_model
 
-app = Flask(__name__, static_folder='../static') 
+logging.basicConfig(level=logging.DEBUG)
+app = Flask(__name__, static_folder='../static')
 
-# Load a more advanced model, e.g., GPT-4 or DeepSeek
-model_name = "deepseek-ai/deepseek-llm-7b-base"  # Replace with the actual model name
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForCausalLM.from_pretrained(model_name)
+tokenizer = get_tokenizer()
+model = get_model()
 
-# Set pad_token to eos_token if necessary
-tokenizer.pad_token = tokenizer.eos_token
+if tokenizer is None or model is None:
+    logging.error("Tokenizer or model failed to load. The application may not function correctly.")
 
-# Create a pipeline for text generation
-generator = pipeline("text-generation", 
-                    model=model, 
-                    tokenizer=tokenizer, 
-                    max_length=100, 
-                    truncation=True, 
-                    temperature=0.7,
-                    pad_token_id=tokenizer.eos_token_id)
 
-# Function to optimize prompts using the advanced model
 def optimize_prompt(prompt):
+    logging.debug(f"Starting optimize_prompt with prompt: '{prompt}'")
+
     if not prompt or prompt.strip() == "":
+        logging.debug("Prompt is empty or whitespace.")
         return "Please enter a prompt to optimize."
 
     optimized_prompt = prompt.strip()
-    base_prompt = f"Optimize this LLM prompt: '{optimized_prompt}'. Suggest a clearer, more specific version (e.g., add context like audience, length, format, or purpose) and return only the optimized prompt, no extra text: "
+    base_prompt = f"[INST]Optimize this LLM prompt: '{optimized_prompt}'. Suggest a clearer, more specific version (e.g., add context like audience, length, format, or purpose): [/INST]"
+    
+    if tokenizer is None or model is None:
+        return "Model not loaded. Please restart the app"
+    
+    logging.debug(f"Base prompt: '{base_prompt}'")
 
     try:
-        result = generator(base_prompt, num_return_sequences=1, max_length=150, temperature=0.5, top_k=50, top_p=0.9)[0]['generated_text']
-        
-        optimized_start = result.find(optimized_prompt) + len(optimized_prompt)
-        if optimized_start > len(optimized_prompt):
-            suggestion = result[optimized_start:].strip()
-            if suggestion and suggestion[0] in [',', '.', ':', ' ']:
-                suggestion = suggestion[1:].strip()
-            if suggestion and suggestion[-1] in [',', '.', ':']:
-                suggestion = suggestion[:-1].strip()
-            if suggestion and "suggest" in suggestion.lower():
-                suggestion = suggestion.split("suggest", 1)[1].strip()
-            if suggestion:
-                return optimized_prompt + " " + suggestion
-        return optimized_prompt + " (enhance with context, e.g., specify audience, length like 'under 50 words', or format)"
-    except Exception as e:
-        print(f"Error generating prompt: {e}")
-        return optimized_prompt + " (enhance with context, e.g., specify audience, length like 'under 50 words', or format)"
+        inputs = tokenizer(base_prompt, return_tensors="pt").to(model.device)
+        logging.debug(f"Tokenized inputs: {inputs}")
 
-# Route for the homepage (serves the HTML form)
+        outputs = model.generate(
+            **inputs,
+            max_new_tokens=200,
+            temperature=0.7,
+            top_k=50,
+            top_p=0.9,
+            do_sample=True
+        )
+        logging.debug(f"Generated outputs: {outputs}")
+
+        result = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        logging.debug(f"Decoded result: '{result}'")
+
+        # Remove the base prompt from the result (Mistral does add the prompt back in)
+        result = result.replace(base_prompt.replace("[INST]", "").replace("[/INST]", ""), "").strip()
+
+        # Remove repetitive phrases
+        result = re.sub(r'(\s*\n){2,}', '\n\n', result)
+        result = re.sub(r'Write a story\.', '', result)
+        result = re.sub(r'Write a story', '', result)
+
+        result = result.strip()
+
+        if result:
+            return optimized_prompt + " " + result
+        else:
+            return optimized_prompt + " (The model was unable to provide a specific optimization, try adding context like audience, length like 'under 50 words', or format)"
+
+    except Exception as e:
+        logging.error(f"Error generating prompt: {e}")
+        return "An error occurred while optimizing the prompt. Please try again."
+
 @app.route('/', methods=['GET', 'POST'])
 def home():
+    logging.debug("Home route accessed")
     if request.method == 'POST':
         user_prompt = request.form.get('prompt')
+        logging.debug(f"User prompt: {user_prompt}")
         optimized = optimize_prompt(user_prompt)
+        logging.debug(f"Optimized prompt: {optimized}")
         return render_template('index.html', prompt=user_prompt, optimized=optimized)
     return render_template('index.html')
 
-# API route for testing (optional, for future frontend integration)
 @app.route('/optimize', methods=['POST'])
 def optimize():
     data = request.json
@@ -67,4 +86,4 @@ def optimize():
     return jsonify({"original": data['prompt'], "optimized": optimized})
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=False, port=5001)
