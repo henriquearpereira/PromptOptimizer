@@ -1,4 +1,4 @@
-<!-- static/index.html -->
+<!-- templates/index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -12,13 +12,44 @@
     <form method="POST" action="/">
         <label for="prompt">Enter your LLM prompt:</label><br>
         <textarea id="prompt" name="prompt" rows="4" cols="50"></textarea><br>
+
+        <label for="detail_level">Detail Level:</label>
+        <select id="detail_level" name="detail_level">
+            <option value="general">General</option>
+            <option value="detailed">Detailed</option>
+            <option value="highly_specific">Highly Specific</option>
+        </select><br>
+
+        <label for="creativity">Creativity (0.0 to 1.0):</label>
+        <input type="range" id="creativity" name="creativity" min="0.0" max="1.0" step="0.1" value="0.7"><br>
+
         <input type="submit" value="Optimize">
     </form>
+
     {% if prompt and optimized %}
         <h2>Results</h2>
         <p><strong>Original Prompt:</strong> {{ prompt }}</p>
         <p><strong>Optimized Prompt:</strong> {{ optimized }}</p>
+
+        <!-- Feedback Form -->
+        <h3>Feedback</h3>
+        <form id="feedbackForm">
+            <label for="rating">Rate this optimization:</label>
+            <select id="rating" name="rating">
+                <option value="5">5 - Excellent</option>
+                <option value="4">4 - Good</option>
+                <option value="3">3 - Average</option>
+                <option value="2">2 - Poor</option>
+                <option value="1">1 - Terrible</option>
+            </select><br>
+
+            <label for="comment">Comments (optional):</label><br>
+            <textarea id="comment" name="comment" rows="3" cols="50"></textarea><br>
+
+            <input type="button" value="Submit Feedback" onclick="submitFeedback()">
+        </form>
     {% endif %}
+
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>
